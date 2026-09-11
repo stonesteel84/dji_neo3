@@ -1,12 +1,6 @@
-"""Tello EDU perception and autonomous-control building blocks."""
-
-from .controller import TargetFollower, TargetFollowerConfig
-from .types import ControlDecision, Detection, RCCommand
+"""DJI Neo real-time tiny object detection module."""
+from .air2s_types import Detection
 
 __all__ = [
-    'ControlDecision',
     'Detection',
-    'RCCommand',
-    'TargetFollower',
-    'TargetFollowerConfig',
 ]

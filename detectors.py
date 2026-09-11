@@ -3,7 +3,7 @@ from typing import List, Optional, Sequence
 import cv2
 import numpy as np
 
-from .types import Detection
+from .air2s_types import Detection
 
 
 class ColorTargetDetector:

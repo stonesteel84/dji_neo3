@@ -1,0 +1,11 @@
+python -m dji_air2s observe \
+    --weights C:\paper\dji_air2s\ffca_yolo\weights\best.pt \
+    --data    C:\paper\dji_air2s\ffca_yolo\data\AITOD.yaml \
+    --targets person,vehicle,car \
+    --duration 30 \
+    --imgsz 640 \
+    --conf-thres 0.2 \
+    --iou-thres 0.4 \
+    --device 0 \
+    --half \
+    --output C:\paper\dji_air2s\outputs\detect_30s.json
