@@ -1,0 +1,39 @@
+name: dji-air2s
+channels:
+  - defaults
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.12
+  - pip
+  # Core scientific stack
+  - numpy
+  - pandas
+  - tqdm
+  - pyyaml
+  # Visualization
+  - matplotlib
+  - seaborn
+  # Video & image processing
+  - opencv
+  - ffmpeg
+  # Deep learning
+  - pytorch
+  - torchvision
+  - cpuonly  # remove if you have a CUDA GPU and want GPU support
+  # System utilities
+  - psutil
+  # Ensure pip can install any missing wheels
+  - pip:
+    - opencv-python
+    - torch
+    - torchvision
+    - pandas
+    - tqdm
+    - pyyaml
+    - matplotlib
+    - seaborn
+    - psutil
+    - numpy
+    - tqdm
+
