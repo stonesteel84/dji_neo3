@@ -197,7 +197,7 @@ python -m dji_neo `
 ## 실행
 ```python
 python .\dji_neo_camera_inference.py `
-  --weights ".\runs\train\A0-FFCA-YOLO-UA-Baseline2\weights\best.pt" `
+  --weights ".\ffca_yolo\weights\best.pt" `
   --data ".\data\AITOD.yaml" `
   --input-mode scrcpy `
   --scrcpy-max-size 1280 `

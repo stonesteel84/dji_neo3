@@ -1,0 +1,18 @@
+# DJI Neo (Android DJI Fly + Windows scrcpy) 실시간 추론
+# 처음 실행: 카메라 영상 영역을 드래그해 crop 선택
+python dji_neo_camera_inference.py `
+    --weights "ffca_yolo\weights\best.pt" `
+    --input-mode scrcpy `
+    --device 0 `
+    --half `
+    --select-crop `
+    --view-img
+
+# crop 좌표를 알고 있는 다음 실행
+python dji_neo_camera_inference.py `
+    --weights "ffca_yolo\weights\best.pt" `
+    --input-mode scrcpy `
+    --scrcpy-crop 0 120 960 540 `
+    --device 0 `
+    --half `
+    --view-img

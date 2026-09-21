@@ -1,0 +1,9 @@
+python local_camera_inference.py \
+    --weights runs/train/full_suv_rpst/weights/best.pt \
+    --camera-id 0 \
+    --imgsz 640 \
+    --conf-thres 0.25 \
+    --iou-thres 0.45 \
+    --device 0 \
+    --half \
+    --view-img

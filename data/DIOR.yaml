@@ -1,0 +1,31 @@
+path: /media/kim/SY_SSD1TB/data_1/DIOR/DIOR_YOLO
+
+train: images/train
+val: images/val
+test: images/test
+
+nc: 20
+
+names:
+  [
+    'airplane',
+    'airport',
+    'baseballfield',
+    'basketballcourt',
+    'bridge',
+    'chimney',
+    'dam',
+    'Expressway-Service-area',
+    'Expressway-toll-station',
+    'golffield',
+    'groundtrackfield',
+    'harbor',
+    'overpass',
+    'ship',
+    'stadium',
+    'storagetank',
+    'tenniscourt',
+    'trainstation',
+    'vehicle',
+    'windmill'
+  ]

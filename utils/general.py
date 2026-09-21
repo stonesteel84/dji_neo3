@@ -35,7 +35,15 @@ import pkg_resources as pkg
 import torch
 import torchvision
 import yaml
-from ultralytics.utils.checks import check_requirements
+
+# The inference path only needs the local YOLOv5 utilities.  Newer Python
+# environments can have an incompatible torchvision/ultralytics combination;
+# keep the optional dependency used by check_git_info from blocking inference.
+try:
+    from ultralytics.utils.checks import check_requirements
+except (ImportError, AttributeError):
+    def check_requirements(*args, **kwargs):
+        return True
 
 from utils import TryExcept, emojis
 from utils.downloads import curl_download, gsutil_getsize
@@ -858,6 +866,37 @@ def clip_segments(segments, shape):
         segments[:, 1] = segments[:, 1].clip(0, shape[0])  # y
 
 
+def _nms(boxes, scores, iou_thres):
+    """Run torchvision NMS when available, otherwise use a torch-only fallback."""
+    torchvision_ops = getattr(torchvision, 'ops', None)
+    torchvision_nms = getattr(torchvision_ops, 'nms', None)
+    if torchvision_nms is not None:
+        return torchvision_nms(boxes, scores, iou_thres)
+
+    order = scores.argsort(descending=True)
+    keep = []
+    while order.numel() > 0:
+        current = order[0]
+        keep.append(current)
+        if order.numel() == 1:
+            break
+
+        rest = order[1:]
+        x1 = torch.maximum(boxes[current, 0], boxes[rest, 0])
+        y1 = torch.maximum(boxes[current, 1], boxes[rest, 1])
+        x2 = torch.minimum(boxes[current, 2], boxes[rest, 2])
+        y2 = torch.minimum(boxes[current, 3], boxes[rest, 3])
+        intersection = (x2 - x1).clamp(min=0) * (y2 - y1).clamp(min=0)
+        area_current = (boxes[current, 2] - boxes[current, 0]).clamp(min=0) * \
+            (boxes[current, 3] - boxes[current, 1]).clamp(min=0)
+        area_rest = (boxes[rest, 2] - boxes[rest, 0]).clamp(min=0) * \
+            (boxes[rest, 3] - boxes[rest, 1]).clamp(min=0)
+        iou = intersection / (area_current + area_rest - intersection).clamp(min=torch.finfo(boxes.dtype).eps)
+        order = rest[iou <= iou_thres]
+
+    return torch.stack(keep).to(device=boxes.device, dtype=torch.long)
+
+
 def non_max_suppression(
         prediction,
         conf_thres=0.25,
@@ -951,7 +990,7 @@ def non_max_suppression(
         # Batched NMS
         c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
         boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
-        i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        i = _nms(boxes, scores, iou_thres)  # NMS
         i = i[:max_det]  # limit detections
         if merge and (1 < n < 3E3):  # Merge NMS (boxes merged using weighted mean)
             # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
