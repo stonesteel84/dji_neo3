@@ -194,6 +194,24 @@ python -m dji_neo `
 
 기본 가중치 또는 데이터 YAML 파일이 없으면 모델 로딩 단계에서 `FileNotFoundError`가 발생합니다.
 
+## 실행
+```python
+python .\dji_neo_camera_inference.py `
+  --weights ".\runs\train\A0-FFCA-YOLO-UA-Baseline2\weights\best.pt" `
+  --data ".\data\AITOD.yaml" `
+  --input-mode scrcpy `
+  --scrcpy-max-size 1280 `
+  --device cpu `
+  --classes 0 `
+  --conf-thres 0.25 `
+  --select-crop `
+  --view-img
+```
+
+## TEST
+<img width="263" height="257" alt="dji_neo" src="https://github.com/user-attachments/assets/5237759a-3490-4a77-9a54-6bc30c0c5995" />
+
+
 ## 문제 해결
 
 - `No module named 'cv2'`: Conda 환경을 활성화했는지 확인하고 OpenCV를 설치합니다.
