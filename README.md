@@ -1,8 +1,14 @@
-# DJI Neo 실시간 소형 객체 탐지
+# 드론 영상 실시간 소형 객체 탐지 (DJI Neo · Parrot Mambo FPV)
 
-웹캠, 영상 파일 또는 네트워크 스트림의 프레임을 받아 번들된 **FFCA-YOLO/TS-RPST** 모델로 소형 객체를 탐지하고, 결과를 OpenCV 창에 실시간으로 표시하는 Python 모듈입니다.
+드론 영상, 웹캠, 영상 파일 또는 네트워크 스트림의 프레임을 받아 번들된 **FFCA-YOLO/TS-RPST** 모델로 소형 객체를 탐지하고, 결과를 OpenCV 창에 실시간으로 표시합니다.
 
-> 현재 코드에는 DJI Neo 기체 연결이나 비행 제어 기능이 없습니다. `--source`로 지정한 영상을 분석하는 탐지 전용 프로젝트입니다.
+| 입력 | 실행 파일 | 영상 경로 |
+| --- | --- | --- |
+| DJI Neo | `dji_neo_camera_inference.py` | Android DJI Fly 화면을 USB(scrcpy)로 미러링해 캡처 |
+| Parrot Mambo FPV | `mambo_camera_inference.py` | PC가 Mambo Wi-Fi에 접속해 RTSP/RTP 영상을 직접 수신 |
+| 웹캠·파일·스트림 | `python -m dji_neo` | `--source`로 지정한 OpenCV 입력 |
+
+> 모든 경로는 **영상 수신과 탐지만** 합니다. 비행 명령을 보내거나 자동 비행하는 기능은 없습니다. 비행은 각 기체의 앱으로 조종합니다.
 
 ## 주요 기능
 
@@ -26,6 +32,11 @@ dji_neo/
 ├── __init__.py                 # 공개 타입(Detection) 노출
 ├── __main__.py                 # python -m dji_neo 진입점
 ├── neo_detect.py               # CLI 옵션, 영상 입력, 화면 표시 루프
+├── dji_neo_camera_inference.py # DJI Neo: scrcpy 화면 캡처(또는 RTMP) → 탐지
+├── DJI_NEO_SETUP.md            # DJI Neo + Android + scrcpy 상세 설정
+├── mambo_camera_inference.py   # Mambo FPV: RTSP/RTP 수신 → 탐지 + 추적 ID/궤적
+├── mambo_stream_probe.py       # Mambo 스트림 진단(RTP 손실, 프레이밍, 디코드)
+├── tests/                      # Mambo 수신·추적 단위 테스트
 ├── detectors.py                # 공통 Detection 형식으로 변환하는 탐지기 어댑터
 ├── ffca_detector.py            # 모델 로드, 전처리, 추론, NMS, 좌표 복원
 ├── air2s_types.py              # Detection 데이터 클래스
@@ -116,7 +127,7 @@ CUDA 첫 번째 GPU:
 python -m dji_neo --source 0 --device 0
 ```
 
-DJI Neo 영상을 사용하려면 먼저 별도의 송출 방식으로 PC에서 접근 가능한 영상 URL 또는 캡처 장치를 준비해야 합니다. 이 프로젝트 자체는 기체나 DJI Fly 앱에서 영상 스트림을 가져오지 않습니다.
+드론 영상은 아래의 [DJI Neo](#dji-neo-실시간-추론-android--scrcpy)와 [Parrot Mambo FPV](#parrot-mambo-fpv-실시간-탐지추적) 전용 스크립트를 사용합니다.
 
 ### CLI 옵션
 
@@ -194,8 +205,15 @@ python -m dji_neo `
 
 기본 가중치 또는 데이터 YAML 파일이 없으면 모델 로딩 단계에서 `FileNotFoundError`가 발생합니다.
 
-## 실행
-```python
+## DJI Neo 실시간 추론 (Android + scrcpy)
+
+```text
+DJI Neo ─(Wi-Fi)→ Android 폰(DJI Fly로 조종) ─(USB + ADB)→ PC(scrcpy 창 캡처 → FFCA-YOLO)
+```
+
+PC는 기체에 직접 접속하지 않고 스마트폰의 DJI Fly 화면을 읽습니다. scrcpy는 `--no-control`로 실행되므로 PC 입력이 폰으로 전달되지 않습니다. 설치와 폰 설정은 [DJI_NEO_SETUP.md](DJI_NEO_SETUP.md)를 따릅니다(scrcpy·adb 설치, USB 디버깅, `adb devices`가 `device`인지 확인).
+
+```powershell
 python .\dji_neo_camera_inference.py `
   --weights ".\ffca_yolo\weights\best.pt" `
   --data ".\data\AITOD.yaml" `
@@ -207,6 +225,48 @@ python .\dji_neo_camera_inference.py `
   --select-crop `
   --view-img
 ```
+
+- `--select-crop`: scrcpy 창 크기가 안정된 뒤 선택 창이 뜹니다. **좌우 검은 띠를 뺀 카메라 영상 전체**를 드래그하고 Enter를 누릅니다. 선택 후 창 크기가 바뀌면 같은 비율로 영역을 맞춥니다.
+- 로그에 출력된 좌표로 다음부터는 `--scrcpy-crop X Y W H`를 지정할 수 있습니다. 이 값은 scrcpy 창 크기 기준이므로 폰 방향이나 `--scrcpy-max-size`를 바꾸면 다시 선택해야 합니다.
+- 녹화 버튼·배터리 등 DJI Fly UI는 영상 위에 겹쳐 있어 함께 캡처됩니다.
+- PyTorch가 CUDA를 인식하지 못하면 `--device cpu`를 사용하고 `--half`는 빼십시오.
+
+## Parrot Mambo FPV 실시간 탐지·추적
+
+```text
+Mambo FPV ─(Wi-Fi, rtsp://192.168.99.1/media/stream2)→ PC(RTP/UDP 수신 → FFmpeg 디코드 → FFCA-YOLO → IoU 추적)
+```
+
+준비:
+
+1. FFmpeg 설치: `winget install --id Gyan.FFmpeg.Essentials --exact --source winget`
+2. PC를 Mambo Wi-Fi(`Mambo_XXXXXX`)에 연결하고 IP가 `192.168.99.x`인지 확인합니다(`ipconfig`).
+3. 휴대폰 FreeFlight Mini 앱은 꺼 두는 것을 권장합니다. 같은 Wi-Fi 대역폭을 나눠 쓰면 손실이 늘었습니다.
+4. 처음 실행 시 Windows 방화벽이 Python의 UDP 수신 허용을 물으면 허용합니다.
+
+```powershell
+# 영상만 확인(YOLO 미로드)
+python mambo_camera_inference.py --preview-only
+
+# 탐지 + 추적 ID/궤적 (클래스 0 airplane, 6 person 등)
+python mambo_camera_inference.py --weights ffca_yolo/weights/best.pt --device cpu --imgsz 320 --classes 6
+```
+
+- 기본 수신 경로는 `--backend rtp`(UDP)입니다. Mambo는 SDP로 알려 주는 SPS/PPS(Main/CABAC)가 실제 스트림(High/CAVLC)과 달라 OpenCV·VLC로 받으면 H.264 오류가 반복됩니다. `rtp` 경로는 스트림 안의 SPS/PPS만 사용합니다. 시험 결과 같은 캡처에서 오류가 314줄에서 0줄로 줄었습니다.
+- Mambo의 RTSP-over-TCP는 부하가 걸리면 프레이밍이 깨져 UDP가 기본입니다. `--backend opencv`/`vlc`도 비교용으로 남아 있습니다.
+- 영상이 끊겨도 창은 닫히지 않고 대기 화면을 표시하며 자동으로 재연결합니다. 5초마다 `RTP stats`(패킷, 손실, 디코드 프레임, 오류)를 출력합니다.
+- 추적은 클래스별 IoU 매칭입니다. 외형 특징·움직임 예측이 없어 가림·교차·빠른 카메라 이동 시 ID가 바뀔 수 있습니다.
+- `q`/`Esc`/창 닫기로 종료합니다. `--save-video`로 결과를 저장할 수 있습니다.
+
+스트림 진단(다른 영상 클라이언트를 모두 닫고 단독 실행):
+
+```powershell
+python mambo_stream_probe.py --seconds 60 --transport udp --dump outputs/mambo_probe.h264
+```
+
+RTP 손실, TCP 프레이밍 오류, 타임스탬프, IDR 간격, 수신 데이터의 오프라인 디코드 결과를 따로 보고합니다.
+
+단위 테스트: `python -m unittest discover -s tests -p "test_mambo_*.py"`
 
 ## TEST
 <img width="263" height="257" alt="dji_neo" src="https://github.com/user-attachments/assets/5237759a-3490-4a77-9a54-6bc30c0c5995" />
@@ -223,6 +283,10 @@ python .\dji_neo_camera_inference.py `
 - 비디오 소스를 열 수 없음: 웹캠 번호, 파일 경로, URL, 인증 정보 및 방화벽 상태를 확인합니다.
 - 프레임을 받아올 수 없음: 영상이 끝났거나 스트림 연결이 끊어진 상태입니다.
 - 탐지가 표시되지 않음: 기본 CLI는 `person`과 `vehicle`에 해당하는 결과만 표시하며 confidence 임계값은 `0.2`입니다.
+- Mambo `timed out` / ping 실패: 드론 재부팅 후 PC IP가 `169.254.x.x`이면 DHCP를 못 받은 것입니다. `ipconfig /renew "Wi-Fi"` 후 다시 실행합니다. 그래도 안 되면 드론 배터리와 부팅 상태를 확인하고 Wi-Fi를 다시 연결합니다.
+- Mambo `no RTP packets`: RTSP 응답은 오지만 드론이 영상을 보내지 않는 상태입니다. 드론 전원을 껐다 켜고 배터리 잔량을 확인합니다.
+- DJI Neo 결과가 화면 일부만 보임: `--scrcpy-crop`이 현재 scrcpy 창 크기와 맞지 않는 경우입니다. `--select-crop`으로 다시 선택합니다.
+- DJI Neo 창이 대기 중: scrcpy가 종료됐을 수 있습니다. `adb devices`에서 폰이 `device`인지, 폰 화면 잠금이 풀려 있는지 확인합니다.
 
 ## 현재 저장소의 참고 사항
 
