@@ -415,6 +415,7 @@ class ScrcpyWindowReceiver:
 
         self._crop_lock = threading.Lock()
         self._crop = self._validate_crop(crop)
+        self._crop_reference = None  # (width, height) of the frame the crop was drawn on
         self._resolved_scrcpy = None
         self._stop_event = threading.Event()
         self._thread = None
@@ -434,10 +435,11 @@ class ScrcpyWindowReceiver:
             raise ValueError('scrcpy crop requires x/y >= 0 and width/height > 0')
         return x, y, width, height
 
-    def set_crop(self, crop):
+    def set_crop(self, crop, reference_size=None):
         validated = self._validate_crop(crop)
         with self._crop_lock:
             self._crop = validated
+            self._crop_reference = tuple(reference_size) if reference_size else None
 
     def get_crop(self):
         with self._crop_lock:
@@ -578,12 +580,18 @@ class ScrcpyWindowReceiver:
 
     def _apply_crop(self, frame):
         with self._crop_lock:
-            crop = self._crop
+            crop, reference = self._crop, self._crop_reference
         if crop is None:
             return frame
 
         x, y, width, height = crop
         frame_height, frame_width = frame.shape[:2]
+        if reference and reference != (frame_width, frame_height):
+            # The scrcpy window was resized after selection: keep the same relative region.
+            sx, sy = frame_width / reference[0], frame_height / reference[1]
+            x, width = int(round(x * sx)), max(1, int(round(width * sx)))
+            y, height = int(round(y * sy)), max(1, int(round(height * sy)))
+            width, height = min(width, frame_width - x), min(height, frame_height - y)
         if x + width > frame_width or y + height > frame_height:
             raise RuntimeError(
                 f'--scrcpy-crop {x} {y} {width} {height} exceeds current scrcpy '
@@ -888,6 +896,7 @@ def run(opt):
         fps_ema = 0.0
         no_frame_deadline = time.monotonic() + opt.frame_timeout
         crop_selected = not opt.select_crop
+        settle_shape, settle_since = None, 0.0
 
         while True:
             frame, frame_id, _ = receiver.get_latest_frame()
@@ -898,23 +907,36 @@ def run(opt):
                         f'{receiver.diagnostic()}\n'
                         'Check the selected input mode and its connection/setup instructions.'
                     )
-                time.sleep(0.001)
+                if opt.view_img:
+                    # Pump the window while waiting so Windows does not mark it "Not Responding".
+                    if (cv2.waitKey(10) & 0xFF) == ord('q'):
+                        break
+                else:
+                    time.sleep(0.001)
                 continue
 
             last_frame_id = frame_id
             no_frame_deadline = time.monotonic() + opt.frame_timeout
 
             if not crop_selected:
+                # scrcpy opens small and then resizes; selecting on an early frame gave a
+                # crop that only covered the top-left corner of the final window.
+                if frame.shape != settle_shape:
+                    settle_shape, settle_since = frame.shape, time.monotonic()
+                    continue
+                if time.monotonic() - settle_since < 1.5:
+                    continue
+                LOGGER.info(f'scrcpy window size settled at {frame.shape[1]}x{frame.shape[0]}.')
                 LOGGER.info('Drag the DJI Fly camera ROI, then press Enter/Space. Press Esc to cancel.')
                 roi = cv2.selectROI('Select DJI Fly camera area', frame, False, False)
                 cv2.destroyWindow('Select DJI Fly camera area')
                 x, y, width, height = (int(value) for value in roi)
                 if width <= 0 or height <= 0:
                     raise RuntimeError('[ERROR] scrcpy crop selection was cancelled or empty.')
-                receiver.set_crop((x, y, width, height))
+                receiver.set_crop((x, y, width, height), (frame.shape[1], frame.shape[0]))
                 LOGGER.info(
-                    'Selected camera ROI. Reuse it next time with: '
-                    f'--scrcpy-crop {x} {y} {width} {height}'
+                    f'Selected camera ROI on a {frame.shape[1]}x{frame.shape[0]} scrcpy frame. '
+                    f'Reuse it next time with: --scrcpy-crop {x} {y} {width} {height}'
                 )
                 crop_selected = True
                 continue
