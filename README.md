@@ -211,6 +211,9 @@ python .\dji_neo_camera_inference.py `
 ## TEST
 <img width="263" height="257" alt="dji_neo" src="https://github.com/user-attachments/assets/5237759a-3490-4a77-9a54-6bc30c0c5995" />
 
+## 시연용
+<img width="1280" height="1280" alt="image_dior_val1 (1)" src="https://github.com/user-attachments/assets/3f6769c9-b70f-4dcf-9183-904cbffe7fa8" />
+
 
 ## 문제 해결
 
