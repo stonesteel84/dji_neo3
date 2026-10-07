@@ -272,7 +272,8 @@ RTP 손실, TCP 프레이밍 오류, 타임스탬프, IDR 간격, 수신 데이�
 <img width="263" height="257" alt="dji_neo" src="https://github.com/user-attachments/assets/5237759a-3490-4a77-9a54-6bc30c0c5995" />
 
 ## 시연용
-<img width="1280" height="1280" alt="image_dior_val1 (1)" src="https://github.com/user-attachments/assets/3f6769c9-b70f-4dcf-9183-904cbffe7fa8" />
+<img width="632" height="791" alt="drone2" src="https://github.com/user-attachments/assets/ab988f18-5b13-4063-a3db-cdfd79f1928d" />
+
 
 
 ## 문제 해결
