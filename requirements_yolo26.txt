@@ -1,0 +1,9 @@
+# Dependencies for the YOLO26 port of TS-RPST (tsrpst_yolo26/, train_yolo26_tsrpst.py).
+# Verified with ultralytics 8.4.172 on Python 3.14 / torch 2.13 (CPU). For GPU training install a CUDA build of
+# torch/torchvision first, e.g.:  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+ultralytics==8.4.172
+torch>=2.6
+torchvision>=0.21
+opencv-python>=4.8
+numpy>=1.26
+pyyaml>=6.0

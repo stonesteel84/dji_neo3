@@ -45,6 +45,8 @@ dji_neo/
 ├── inference.txt               # 이전 Air2S 실행 예시(현재 CLI와 호환되지 않음)
 ├── docs/
 │   └── simulation_evidence/    # 이전 Tello 폐루프 시뮬레이션 자료
+├── tsrpst_yolo26/              # TS-RPST를 Ultralytics YOLO26 위에 이식한 학습 패키지
+├── train_yolo26_tsrpst.py      # YOLO26 TS-RPST 학습 CLI
 └── ffca_yolo/
     ├── weights/best.pt         # 기본 TS-RPST 체크포인트
     ├── data/AITOD.yaml         # 클래스 이름 및 데이터셋 설정
@@ -267,6 +269,61 @@ python mambo_stream_probe.py --seconds 60 --transport udp --dump outputs/mambo_p
 RTP 손실, TCP 프레이밍 오류, 타임스탬프, IDR 간격, 수신 데이터의 오프라인 디코드 결과를 따로 보고합니다.
 
 단위 테스트: `python -m unittest discover -s tests -p "test_mambo_*.py"`
+
+## YOLO26 기반 TS-RPST 학습 (`tsrpst_yolo26/`)
+
+논문의 TS-RPST(TOSD + UAFeatureUpsample + RPST)를 YOLOv5 포크가 아닌 **Ultralytics YOLO26** 위에서 학습할 수 있도록 이식한 패키지입니다. 추론 런타임(`ffca_yolo/`)과는 독립적이며, `ultralytics==8.4.172` 기준으로 검증했습니다.
+
+| 파일 | 역할 |
+| --- | --- |
+| `tsrpst_yolo26/modules.py` | `TinyObjectSurvivalDownsample`(TOSD), `UAFeatureUpsample` (Ultralytics `Conv` 기반) |
+| `tsrpst_yolo26/survival.py` | TOSD 생존 위험 감독 손실 (논문 식 3–5) |
+| `tsrpst_yolo26/rpst.py` | 학습 전용 RPST: 로컬 EMA 교사, 확대 crop, scale-trajectory / foreground-context 손실 (식 6–12) |
+| `tsrpst_yolo26/model.py` | `TSRPSTDetectionModel`: YOLO26 모델에 위 모듈을 삽입하고 보조 손실을 합산 |
+| `tsrpst_yolo26/trainer.py` | `TSRPSTTrainer`: Ultralytics `DetectionTrainer` 확장 (EMA 교사 갱신, epoch 동기화) |
+| `tsrpst_yolo26/cfg/yolo26-tsrpst.yaml` | P3–P5 변형. backbone 1·3층 TOSD, neck 업샘플 2개를 UA로 교체 |
+| `tsrpst_yolo26/cfg/yolo26-tsrpst-p2.yaml` | P2–P5 변형(stride 4 출력 추가). AI-TOD 권장 |
+| `tsrpst_yolo26/cfg/tsrpst.yaml` | 논문 3.1절의 survival/RPST 하이퍼파라미터 |
+| `data/aitod_yolo26.yaml` | AI-TOD 데이터 정의 (`path`만 실제 경로로 수정) |
+| `train_yolo26_tsrpst.py` | 학습 CLI |
+
+Ultralytics는 알 수 없는 설정 키를 거부하므로 TS-RPST 하이퍼파라미터는 `tsrpst.yaml`에 따로 두고 `--tsrpst`로 전달합니다. 나머지(옵티마이저 MuSGD/ProgLoss, 증강, batch 등)는 Ultralytics `train` 인자를 그대로 사용합니다.
+
+```powershell
+pip install -r requirements_yolo26.txt
+```
+
+논문 프로토콜(640px, batch 32, 300 epoch)로 학습:
+
+```powershell
+python train_yolo26_tsrpst.py --model yolo26s-tsrpst-p2.yaml --data data/aitod_yolo26.yaml --epochs 300 --batch 32 --imgsz 640 --device 0 --name yolo26s_tsrpst_p2
+```
+
+Ablation 예시:
+
+```powershell
+python train_yolo26_tsrpst.py --model yolo26s-p2.yaml --data data/aitod_yolo26.yaml --name a0_yolo26s_p2
+```
+
+```powershell
+python train_yolo26_tsrpst.py --model yolo26s-tsrpst-p2.yaml --no-rpst --data data/aitod_yolo26.yaml --name a1_tosd_only
+```
+
+```powershell
+python train_yolo26_tsrpst.py --model yolo26s-tsrpst-p2.yaml --no-survival --data data/aitod_yolo26.yaml --name a2_rpst_only
+```
+
+- 모델 이름의 scale 문자(`yolo26n/s/m/l/x-tsrpst[-p2].yaml`)로 depth/width가 정해집니다. 평범한 `yolo26s-p2.yaml`을 주면 TOSD/UA 없이 보조 손실은 0으로 기록되어 베이스라인이 됩니다.
+- 학습 로그에는 `box_loss cls_loss l1_loss surv_loss rpst_loss`가 표시됩니다. RPST는 `rpst_start_epoch`(기본 10) 이후 `rpst_interval`(기본 4) 반복마다 실행되며 검증·추론에는 관여하지 않습니다.
+- 검증/추론은 Ultralytics 기본값(`nms=None`)에서 one-to-many 헤드 + NMS를 사용합니다. NMS-free(one-to-one) 결과는 `--opt nms=False`로 얻을 수 있으며, 논문 표에는 두 모드를 구분해 보고하는 것이 안전합니다.
+- 체크포인트는 `YOLO("runs/.../best.pt")`로 바로 불러올 수 있습니다. 언피클 시 `tsrpst_yolo26` 패키지가 import 가능해야 합니다.
+- 이 노트북(RTX 3060 Laptop 6GB, CPU 전용 PyTorch)에서는 `--batch 8 --device 0` 수준의 파일럿만 가능하고 논문 프로토콜 재현은 불가능합니다. CUDA PyTorch를 설치한 뒤 사용하십시오.
+
+CPU 스모크 테스트(합성 데이터로 2 epoch 학습까지 수행, 약 30초):
+
+```powershell
+python tests/test_tsrpst_yolo26.py
+```
 
 ## TEST
 <img width="263" height="257" alt="dji_neo" src="https://github.com/user-attachments/assets/5237759a-3490-4a77-9a54-6bc30c0c5995" />

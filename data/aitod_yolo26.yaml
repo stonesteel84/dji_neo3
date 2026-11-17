@@ -1,0 +1,20 @@
+# AI-TOD v2 in Ultralytics layout for TS-RPST / YOLO26 training.
+# Expected tree (YOLO txt labels: `cls cx cy w h`, normalised):
+#   <path>/images/{train,val,test}/*.png
+#   <path>/labels/{train,val,test}/*.txt
+# The YOLOv5 labels used by data/AITOD.yaml are already in this format; only `path` has to be changed.
+
+path: /home/kim/AI-TOD/aitodtoolkit/aitod # dataset root dir (override with train(data=...) or edit here)
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: airplane
+  1: bridge
+  2: storage-tank
+  3: ship
+  4: swimming-pool
+  5: vehicle
+  6: person
+  7: wind-mill

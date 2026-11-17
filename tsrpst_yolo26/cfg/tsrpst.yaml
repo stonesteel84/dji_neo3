@@ -1,0 +1,34 @@
+# TS-RPST auxiliary-loss hyper-parameters (paper Sec. 3.1). Kept outside the Ultralytics config because Ultralytics
+# rejects unknown keys; pass this file (or a dict) as `tsrpst=` to TSRPSTTrainer / `--tsrpst` to train_yolo26_tsrpst.py.
+# Detection-loss gains, optimizer (MuSGD/ProgLoss), augmentation etc. are Ultralytics' own `train(...)` arguments.
+
+# --- TOSD survival supervision (Eq. 3-5)
+survival_enabled: true
+survival_loss_weight: 0.25 # lambda_surv
+survival_tau: 4.0 # extinction decay tau (object area in risk-map pixels)
+survival_focal_gamma: 2.0 # focal exponent gamma_f
+
+# --- RPST (Eq. 6-12)
+rpst_enabled: true
+rpst_loss_weight: 0.20 # lambda_rpst
+rpst_tiny_max_size: 32 # s_tiny: max side (px) of objects that receive privileged supervision
+rpst_max_objects_per_image: 2
+rpst_max_objects_per_batch: 16
+rpst_crop_context: 2.0 # kappa: crop side = kappa * max(w, h)
+rpst_crop_size: 192 # S_c: crops are resized to S_c x S_c before the teacher
+rpst_temperature: 1.0 # T in q_i = softmax(e_i / T)
+rpst_trajectory_weight: 1.0 # lambda_traj
+rpst_relation_weight: 0.5 # lambda_rel
+rpst_start_epoch: 10 # RPST activated from this epoch ...
+rpst_warmup_epochs: 10 # ... with a linear warm-up of lambda_rpst over this many epochs
+rpst_interval: 4 # execute RPST every N iterations
+rpst_roi_size: 3 # RoIAlign output size for object / context pooling
+rpst_context_scale: 1.5 # expanded-region scale for the foreground-context relation
+rpst_teacher_batch_size: 16
+rpst_ema_decay: 0.999 # mu: local EMA teacher momentum
+
+# --- bookkeeping
+# false: add lambda_surv*L_surv + lambda_rpst*L_rpst un-scaled on top of Ultralytics' batch-scaled detection loss
+#        (identical to the YOLOv5 reference implementation at batch 32).
+# true:  multiply the auxiliary terms by the batch size so their relative weight is batch-size independent.
+aux_scale_by_batch: false
